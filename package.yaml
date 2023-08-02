@@ -1,0 +1,15 @@
+name: dedumi
+
+dependencies:
+  - base
+  - zlib
+  - microlens-platform
+  - bytestring
+  - streamly-bytestring
+  - streamly
+  - streamly-core
+  - streamly-archive
+
+executables:
+  dedumi:
+    main: dedumi.hs
