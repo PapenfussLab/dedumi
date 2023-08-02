@@ -32,23 +32,18 @@ import Streamly.Internal.Data.Unfold.Type (Unfold (..))
 import qualified Streamly.Internal.FileSystem.File as File
 import System.IO
 import System.IO.Unsafe (unsafeInterleaveIO)
-import Prelude hiding (Read, reads)
+import Prelude hiding (Read)
 
 data Read = Read
   { _qual :: ByteString,
-    _nucs :: ByteString
+    _nucs :: ByteString,
+    _header :: ByteString
   }
   deriving (Eq, Show, Ord)
 
 makeLenses ''Read
 
-data ReadPair = ReadPair
-  { _header :: ByteString,
-    _reads :: (Read, Read)
-  }
-  deriving (Eq, Show, Ord)
-
-makeLenses ''ReadPair
+type ReadPair = (Read, Read)
 
 parse :: MonadIO m => FilePath -> FilePath -> Stream m ReadPair
 parse l r =
@@ -66,8 +61,8 @@ parse l r =
 
     parseEntry l r =
       let [hdr, seq, "+", qual] = SB.fromArray l & BC.lines
-          [_, seq', "+", qual'] = SB.fromArray r & BC.lines
-       in ReadPair hdr (Read qual seq, Read qual' seq')
+          [hdr', seq', "+", qual'] = SB.fromArray r & BC.lines
+       in (Read qual seq hdr, Read qual' seq' hdr')
 
 unparse :: FilePath -> FilePath -> Stream IO ReadPair -> IO ()
 unparse l r str = do
@@ -83,9 +78,10 @@ unparse l r str = do
     writeFiles l _ a BSL.Empty = BSL.hPut l a
     writeFiles _ r BSL.Empty b = BSL.hPut r b
 
+    unparse' :: ReadPair -> (ByteString, ByteString)
     unparse' read =
-      ( BC.unlines [read ^. header, read ^. reads . _1 . nucs, "+", read ^. reads . _1 . qual],
-        BC.unlines [read ^. header, read ^. reads . _2 . nucs, "+", read ^. reads . _2 . qual]
+      ( BC.unlines [read ^. _1 . header, read ^. _1 . nucs, "+", read ^. _1 . qual],
+        BC.unlines [read ^. _2 . header, read ^. _2 . nucs, "+", read ^. _2 . qual]
       )
 
     toLazyBS :: Stream IO (ByteString, ByteString) -> IO (BSL.ByteString, BSL.ByteString)

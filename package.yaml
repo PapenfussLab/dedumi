@@ -2,6 +2,7 @@ name: dedumi
 
 dependencies:
   - base
+  - fusion-plugin
   - zlib
   - cuckoo
   - microlens-th
@@ -15,4 +16,6 @@ dependencies:
 executables:
   dedumi:
     main: dedumi.hs
-    ghc-options: [-O2, -fspec-constr-recursive=10, -fmax-worker-args=16]
+    ghc-options: [-O2, -fspec-constr-recursive=10, -fmax-worker-args=16, -fplugin=Fusion.Plugin]
+    other-modules:
+      - Data.FastQ

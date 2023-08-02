@@ -15,7 +15,6 @@ import Data.Typeable
 import Lens.Micro
 import qualified Streamly.Data.Stream as S
 import System.Environment
-import Prelude hiding (reads)
 
 instance CuckooFilterHash ByteString where
   cuckooHash (Salt s) = saltedFnv1aByteString s
@@ -27,13 +26,13 @@ umiLength = 8
 
 trim x =
   x
-    & reads . _1 . nucs %~ B.drop umiLength
-    & reads . _2 . nucs %~ B.drop umiLength
-    & reads . _1 . qual %~ B.drop umiLength
-    & reads . _2 . qual %~ B.drop umiLength
+    & _1 . nucs %~ B.drop umiLength
+    & _2 . nucs %~ B.drop umiLength
+    & _1 . qual %~ B.drop umiLength
+    & _2 . qual %~ B.drop umiLength
 
 insert' f x =
-  let y = B.take umiLength (x ^. reads . _1 . nucs) <> B.take umiLength (x ^. reads . _2 . nucs)
+  let y = B.take umiLength (x ^. _1 . nucs) <> B.take umiLength (x ^. _2 . nucs)
    in member f y >>= \case
         True -> pure True
         False ->
