@@ -3,7 +3,9 @@ name: dedumi
 dependencies:
   - base
   - zlib
-  - microlens-platform
+  - cuckoo
+  - microlens-th
+  - microlens
   - bytestring
   - streamly-bytestring
   - streamly
@@ -13,3 +15,4 @@ dependencies:
 executables:
   dedumi:
     main: dedumi.hs
+    ghc-options: [-O2, -fspec-constr-recursive=10, -fmax-worker-args=16]
