@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "cloudflareZlib": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1682701953,
+        "narHash": "sha256-KNS1FDznR2UaXo0WBOUh4lnVY23Kc9JnNyVtYzSpWDw=",
+        "owner": "cloudflare",
+        "repo": "zlib",
+        "rev": "d20bdfcd0efbdd72cb9d857e098ceac1bad41432",
+        "type": "github"
+      },
+      "original": {
+        "owner": "cloudflare",
+        "repo": "zlib",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1690875999,
@@ -17,6 +33,7 @@
     },
     "root": {
       "inputs": {
+        "cloudflareZlib": "cloudflareZlib",
         "nixpkgs": "nixpkgs"
       }
     }
