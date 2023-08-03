@@ -3,33 +3,30 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Data.FastQ where
 
 import Codec.Compression.GZip
-import Data.Bifunctor (bimap)
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Bifunctor (bimap)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Internal as BSL
 import Data.Function
-import Data.Void
 import Data.Word (Word8)
-import Debug.Trace
 import Lens.Micro
 import Lens.Micro.TH
 import Streamly.Data.Array (Array)
-import Streamly.Data.Fold as F
 import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.External.ByteString as SB
 import Streamly.Internal.Data.Stream.Chunked as AS
 import Streamly.Internal.Data.Stream.StreamD.Type (Step (..))
 import Streamly.Internal.Data.Unfold.Type (Unfold (..))
-import qualified Streamly.Internal.FileSystem.File as File
 import System.IO
 import System.IO.Unsafe (unsafeInterleaveIO)
 import Prelude hiding (Read)
