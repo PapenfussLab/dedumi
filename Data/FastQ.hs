@@ -63,7 +63,7 @@ parse l r =
 
 unparse :: FilePath -> FilePath -> Stream IO ReadPair -> IO ()
 unparse l r str = do
-  (compress -> left, compress -> right) <- fmap unparse' str & toLazyBS
+  (compress' -> left, compress' -> right) <- fmap unparse' str & toLazyBS
   lh <- openFile l WriteMode
   rh <- openFile r WriteMode
   writeFiles lh rh left right
@@ -84,3 +84,5 @@ unparse l r str = do
     toLazyBS :: Stream IO (ByteString, ByteString) -> IO (BSL.ByteString, BSL.ByteString)
     toLazyBS =
       S.foldrM (\(l, r) b -> bimap (BSL.chunk ("@" <> l)) (BSL.chunk ("@" <> r)) <$> unsafeInterleaveIO b) (pure (BSL.Empty, BSL.Empty))
+
+    compress' = compressWith (defaultCompressParams {compressLevel = bestSpeed})
