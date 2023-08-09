@@ -27,6 +27,9 @@ instance CuckooFilterHash ByteString where
 umiLength :: Int
 umiLength = 8
 
+extraHashBases :: Int
+extraHashBases = 4
+
 trim :: ReadPair -> ReadPair
 trim x =
   x
@@ -37,7 +40,7 @@ trim x =
 
 insert' :: (KnownNat b, KnownNat f) => CuckooFilter RealWorld b f ByteString -> ReadPair -> IO Bool
 insert' f x =
-  let y = B.take umiLength (x ^. _1 . nucs) <> B.take umiLength (x ^. _2 . nucs)
+  let y = B.take (umiLength + extraHashBases) (x ^. _1 . nucs) <> B.take (umiLength + extraHashBases) (x ^. _2 . nucs)
    in member f y >>= \case
         True -> pure True
         False ->
