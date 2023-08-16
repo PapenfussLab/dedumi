@@ -52,7 +52,7 @@ main :: IO ()
 main = do
   [p1, p2, p3, p4] <- getArgs
 
-  f <- newCuckooFilter @4 @13 @ByteString 0 20_000_000
+  f <- newCuckooFilter @4 @13 @ByteString 0 200_000_000
 
   parse p1 p2
     & S.filterM (insert' f)
