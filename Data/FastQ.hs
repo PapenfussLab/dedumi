@@ -2,12 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Data.FastQ where
 
-import Codec.Zlib
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor (bimap)
@@ -17,6 +17,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Internal as BSL
 import Data.Function
+import Data.Streaming.Zlib
 import Data.Word (Word8)
 import Lens.Micro
 import Lens.Micro.TH
@@ -29,7 +30,6 @@ import Streamly.Internal.Data.Stream.Chunked as AS
 import Streamly.Internal.Data.Stream.StreamD.Type (Step (..))
 import Streamly.Internal.Data.Unfold.Type (Unfold (..))
 import System.IO
-import System.IO.Unsafe (unsafeInterleaveIO)
 import Prelude hiding (Read)
 
 data Read = Read
@@ -49,40 +49,45 @@ parse :: MonadIO m => FilePath -> FilePath -> Stream m ReadPair
 parse l r =
   S.zipWith
     parseEntry
-    (S.unfold streamFile l & AS.splitOn 64 & S.drop 1)
-    (S.unfold streamFile r & AS.splitOn 64 & S.drop 1)
+    (S.unfold streamBGZFile l & AS.splitOn 64 & S.drop 1)
+    (S.unfold streamBGZFile r & AS.splitOn 64 & S.drop 1)
   where
-    streamFile :: MonadIO m => Unfold m FilePath (Array Word8)
-    streamFile = Unfold step seed
+    streamBGZFile :: MonadIO m => Unfold m FilePath (Array Word8)
+    streamBGZFile = Unfold step seed
       where
         seed path = liftIO $ do
           h <- openFile path ReadMode
           i <- initInflate gzipWindow
           pure $ Just (h, i, Nothing)
         step Nothing = pure Stop
-        step (Just (h, i, Nothing)) = liftIO $ step' h i
-        step (Just (h, i, Just popper)) = liftIO $ do
-          popper >>= \case
-            Just str -> pure $ Yield (SB.toArray str) (Just (h, i, Just popper))
-            Nothing -> step' h i
-
-        step' h i = do
+        step (Just (h, i, Nothing)) = liftIO $ do
           chunk <- B.hGet h BSL.defaultChunkSize
           if chunk == B.empty
             then do
+              hClose h
               str <- finishInflate i
               pure $ Yield (SB.toArray str) Nothing
             else do
-              p <- feedInflate i chunk
-              p >>= \case
-                Just str -> pure $ Yield (SB.toArray str) (Just (h, i, Just p))
-                Nothing -> step' h i
+              complete <- isCompleteInflate i
+              (frag, unused, i) <-
+                if complete
+                  then do
+                    f <- finishInflate i
+                    u <- getUnusedInflate i
+                    (f,u,) <$> initInflate gzipWindow
+                  else pure ("", "", i)
+              popper <- feedInflate i $ unused <> chunk
+              pure $ Yield (SB.toArray frag) (Just (h, i, Just popper))
+        step (Just (h, i, Just popper)) = liftIO $ do
+          popper >>= \case
+            PRNext str -> pure $ Yield (SB.toArray str) (Just (h, i, Just popper))
+            PRDone -> pure $ Yield (SB.toArray "") (Just (h, i, Nothing))
+            PRError e -> error $ "parse:" <> show e
 
     parseEntry l r =
-      let [hdr, seq, "+", qual] = SB.fromArray l & BC.lines
-          [hdr', seq', "+", qual'] = SB.fromArray r & BC.lines
-          str = error $ "parseEntry:" <> BC.unpack str
-       in (Read qual seq hdr, Read qual' seq' hdr')
+      case (SB.fromArray l & BC.lines, SB.fromArray r & BC.lines) of
+        ([hdr, seq, "+", qual], [hdr', seq', "+", qual']) -> (Read qual seq hdr, Read qual' seq' hdr')
+        e -> error $ "parseEntry:" <> show e
 
 unparse :: FilePath -> FilePath -> Stream IO ReadPair -> IO ()
 unparse l r str = do
@@ -108,10 +113,11 @@ unparse l r str = do
 
     writePopper h p =
       p >>= \case
-        Just str -> do
+        PRNext str -> do
           B.hPut h str
           writePopper h p
-        Nothing -> pure ()
+        PRDone -> pure ()
+        PRError e -> error $ "parse:" <> show e
 
     unparse' :: ReadPair -> (ByteString, ByteString)
     unparse' read =

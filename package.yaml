@@ -3,7 +3,7 @@ name: dedumi
 dependencies:
   - base
   - fusion-plugin
-  - zlib-bindings
+  - streaming-commons
   - cuckoo
   - microlens-th
   - microlens
