@@ -7,7 +7,7 @@
 
 module Data.FastQ where
 
-import Codec.Compression.GZip
+import Codec.Zlib
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bifunctor (bimap)
@@ -42,19 +42,40 @@ makeLenses ''Read
 
 type ReadPair = (Read, Read)
 
+gzipWindow = WindowBits 31
+
 parse :: MonadIO m => FilePath -> FilePath -> Stream m ReadPair
 parse l r =
   S.zipWith
     parseEntry
-    (S.unfold streamFile l & AS.splitOn 64)
-    (S.unfold streamFile r & AS.splitOn 64)
+    (S.unfold streamFile l & AS.splitOn 64 & S.drop 1)
+    (S.unfold streamFile r & AS.splitOn 64 & S.drop 1)
   where
     streamFile :: MonadIO m => Unfold m FilePath (Array Word8)
     streamFile = Unfold step seed
       where
-        seed = fmap (BSL.tail . decompress) . liftIO . BSL.readFile
-        step (BSL.Chunk bs bl) = pure $ Yield (SB.toArray bs) bl
-        step BSL.Empty = pure Stop
+        seed path = liftIO $ do
+          h <- openFile path ReadMode
+          i <- initInflate gzipWindow
+          pure $ Just (h, i, Nothing)
+        step Nothing = pure Stop
+        step (Just (h, i, Nothing)) = liftIO $ step' h i
+        step (Just (h, i, Just popper)) = liftIO $ do
+          popper >>= \case
+            Just str -> pure $ Yield (SB.toArray str) (Just (h, i, Just popper))
+            Nothing -> step' h i
+
+        step' h i = do
+          chunk <- B.hGet h BSL.defaultChunkSize
+          if chunk == B.empty
+            then do
+              str <- finishInflate i
+              pure $ Yield (SB.toArray str) Nothing
+            else do
+              p <- feedInflate i chunk
+              p >>= \case
+                Just str -> pure $ Yield (SB.toArray str) (Just (h, i, Just p))
+                Nothing -> step' h i
 
     parseEntry l r =
       let [hdr, seq, "+", qual] = SB.fromArray l & BC.lines
@@ -63,17 +84,36 @@ parse l r =
 
 unparse :: FilePath -> FilePath -> Stream IO ReadPair -> IO ()
 unparse l r str = do
-  (compress' -> left, compress' -> right) <- fmap unparse' str & toLazyBS
   lh <- openFile l WriteMode
   rh <- openFile r WriteMode
-  writeFiles lh rh left right
+  ld <- initDeflate 0 gzipWindow
+  rd <- initDeflate 0 gzipWindow
+  fmap unparse' str & toLazyBS >>= uncurry (writeFiles lh rh ld rd)
   where
-    writeFiles l r (BSL.Chunk a as) (BSL.Chunk b bs) = do
-      B.hPut l a
-      B.hPut r b
-      writeFiles l r as bs
-    writeFiles l _ a BSL.Empty = BSL.hPut l a
-    writeFiles _ r BSL.Empty b = BSL.hPut r b
+    writeFiles l r ld rd (BSL.Chunk a as) (BSL.Chunk b bs) = do
+      putCompressed ld l a
+      putCompressed rd r b
+      writeFiles l r ld rd as bs
+    writeFiles l r ld rd BSL.Empty BSL.Empty = do
+      flush rd r
+      flush ld l
+    writeFiles _ _ _ _ _ _ = error "unparse: stream mismatch"
+
+    putCompressed d h chunk = do
+      popper <- feedDeflate d chunk
+      writePopper popper h
+
+    flush d h =
+      finishDeflate d >>= \case
+        Just rest -> B.hPut h rest
+        Nothing -> pure ()
+
+    writePopper p h =
+      p >>= \case
+        Just str -> do
+          B.hPut h str
+          writePopper p h
+        Nothing -> pure ()
 
     unparse' :: ReadPair -> (ByteString, ByteString)
     unparse' read =
@@ -84,5 +124,3 @@ unparse l r str = do
     toLazyBS :: Stream IO (ByteString, ByteString) -> IO (BSL.ByteString, BSL.ByteString)
     toLazyBS =
       S.foldrM (\(l, r) b -> bimap (BSL.chunk ("@" <> l)) (BSL.chunk ("@" <> r)) <$> unsafeInterleaveIO b) (pure (BSL.Empty, BSL.Empty))
-
-    compress' = compressWith (defaultCompressParams {compressLevel = bestSpeed})
