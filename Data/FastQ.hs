@@ -52,7 +52,7 @@ parse l r =
     streamFile :: MonadIO m => Unfold m FilePath (Array Word8)
     streamFile = Unfold step seed
       where
-        seed = pure $ BSL.tail . decompress <$> liftIO (BSL.readFile r)
+        seed = fmap (BSL.tail . decompress) . liftIO . BSL.readFile
         step (BSL.Chunk bs bl) = pure $ Yield (SB.toArray bs) bl
         step BSL.Empty = pure Stop
 
