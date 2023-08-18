@@ -18,3 +18,11 @@ executables:
     ghc-options: [-O2, -fdicts-strict, -fspec-constr-recursive=16, -fmax-worker-args=16, -fplugin=Fusion.Plugin, -Wall, -Wno-name-shadowing]
     other-modules:
       - Data.FastQ
+
+tests:
+  tests:
+    main: test.hs
+    dependencies:
+      - QuickCheck
+    other-modules:
+      - Data.FastQ

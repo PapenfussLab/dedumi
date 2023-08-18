@@ -15,7 +15,6 @@ import Data.Function
 import GHC.Prim (RealWorld)
 import GHC.TypeLits
 import Lens.Micro
-import qualified Streamly.Data.Fold as F
 import qualified Streamly.Data.Stream as S
 import System.Environment
 
@@ -58,5 +57,4 @@ main = do
   parse p1 p2
     & S.filterM (insert' f)
     & fmap trim
-    -- & S.fold (F.drainMapM print)
     & unparse p3 p4

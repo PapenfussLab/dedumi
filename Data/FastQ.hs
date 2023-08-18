@@ -10,12 +10,10 @@ module Data.FastQ where
 
 import Control.Monad
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Bifunctor (bimap)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Lazy.Internal as BSL
+import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Data.Function
 import Data.Streaming.Zlib
 import Data.Word (Word8)
@@ -43,6 +41,7 @@ makeLenses ''Read
 
 type ReadPair = (Read, Read)
 
+gzipWindow :: WindowBits
 gzipWindow = WindowBits 31
 
 parse :: MonadIO m => FilePath -> FilePath -> Stream m ReadPair
@@ -61,22 +60,27 @@ parse l r =
           pure $ Just (h, i, Nothing)
         step Nothing = pure Stop
         step (Just (h, i, Nothing)) = liftIO $ do
-          chunk <- B.hGet h BSL.defaultChunkSize
-          if chunk == B.empty
+          complete <- isCompleteInflate i
+          (frag, unused, i) <-
+            if complete
+              then do
+                f <- finishInflate i
+                u <- getUnusedInflate i
+                (f,u,) <$> initInflate gzipWindow
+              else pure ("", "", i)
+          if unused == ""
             then do
-              hClose h
-              str <- finishInflate i
-              pure $ Yield (SB.toArray str) Nothing
+              chunk <- B.hGet h defaultChunkSize
+              if chunk == B.empty
+                then do
+                  hClose h
+                  str <- finishInflate i
+                  pure $ Yield (SB.toArray $ frag <> str) Nothing
+                else do
+                  popper <- feedInflate i $ chunk
+                  pure $ Yield (SB.toArray frag) (Just (h, i, Just popper))
             else do
-              complete <- isCompleteInflate i
-              (frag, unused, i) <-
-                if complete
-                  then do
-                    f <- finishInflate i
-                    u <- getUnusedInflate i
-                    (f,u,) <$> initInflate gzipWindow
-                  else pure ("", "", i)
-              popper <- feedInflate i $ unused <> chunk
+              popper <- feedInflate i $ unused
               pure $ Yield (SB.toArray frag) (Just (h, i, Just popper))
         step (Just (h, i, Just popper)) = liftIO $ do
           popper >>= \case
