@@ -1,8 +1,12 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Main where
@@ -15,8 +19,28 @@ import Data.Function
 import GHC.Prim (RealWorld)
 import GHC.TypeLits
 import Lens.Micro
+import Options.Generic
 import qualified Streamly.Data.Stream as S
-import System.Environment
+
+newtype NoLabel a = NoLabel {unNoLabel :: a} deriving (Generic)
+
+data Options w = Options
+  { umiLength :: w ::: Natural <?> "length of UMI prefix" <!> "8",
+    extraHashBases :: w ::: Natural <?> "extra hash bases to use for location proxy" <!> "4",
+    filterSize :: w ::: Natural <?> "Cuckoo filter size" <!> "200000000",
+    input1 :: w ::: NoLabel FilePath <?> "input fastq 1 path",
+    input2 :: w ::: NoLabel FilePath <?> "input fastq 2 path",
+    output1 :: w ::: NoLabel FilePath <?> "output fastq 1 path",
+    output2 :: w ::: NoLabel FilePath <?> "output fastq 2 path"
+  }
+  deriving (Generic)
+
+instance ParseFields a => ParseRecord (NoLabel a)
+
+instance ParseFields a => ParseFields (NoLabel a) where
+  parseFields msg _ _ def = fmap NoLabel (parseFields msg Nothing Nothing def)
+
+instance ParseRecord (Options Wrapped)
 
 instance CuckooFilterHash ByteString where
   cuckooHash (Salt s) = saltedFnv1aByteString s
@@ -24,23 +48,17 @@ instance CuckooFilterHash ByteString where
   {-# INLINE cuckooHash #-}
   {-# INLINE cuckooFingerprint #-}
 
-umiLength :: Int
-umiLength = 8
-
-extraHashBases :: Int
-extraHashBases = 4
-
-trim :: ReadPair -> ReadPair
-trim x =
+trim :: Int -> ReadPair -> ReadPair
+trim sz x =
   x
-    & _1 . nucs %~ B.drop umiLength
-    & _2 . nucs %~ B.drop umiLength
-    & _1 . qual %~ B.drop umiLength
-    & _2 . qual %~ B.drop umiLength
+    & _1 . nucs %~ B.drop sz
+    & _2 . nucs %~ B.drop sz
+    & _1 . qual %~ B.drop sz
+    & _2 . qual %~ B.drop sz
 
-insert' :: (KnownNat b, KnownNat f) => CuckooFilter RealWorld b f ByteString -> ReadPair -> IO Bool
-insert' f x =
-  let y = B.take (umiLength + extraHashBases) (x ^. _1 . nucs) <> B.take (umiLength + extraHashBases) (x ^. _2 . nucs)
+insert' :: (KnownNat b, KnownNat f) => Int -> CuckooFilter RealWorld b f ByteString -> ReadPair -> IO Bool
+insert' sz f x =
+  let y = B.take sz (x ^. _1 . nucs) <> B.take sz (x ^. _2 . nucs)
    in member f y >>= \case
         True -> pure False
         False ->
@@ -50,11 +68,11 @@ insert' f x =
 
 main :: IO ()
 main = do
-  [p1, p2, p3, p4] <- getArgs
+  opts <- unwrapRecord "UMI deduplication"
 
-  f <- newCuckooFilter @4 @13 @ByteString 0 200_000_000
+  f <- newCuckooFilter @4 @13 @ByteString 0 (filterSize opts)
 
-  parse p1 p2
-    & S.filterM (insert' f)
-    & fmap trim
-    & unparse p3 p4
+  parse (unNoLabel $ input1 opts) (unNoLabel $ input2 opts)
+    & S.filterM (insert' (fromIntegral $ umiLength opts + extraHashBases opts) f)
+    & fmap (trim . fromIntegral $ umiLength opts)
+    & unparse (unNoLabel $ output1 opts) (unNoLabel $ output2 opts)
