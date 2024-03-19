@@ -19,6 +19,7 @@ executables:
     ghc-options: [-O2, -fdicts-strict, -fspec-constr-recursive=16, -fmax-worker-args=16, -fplugin=Fusion.Plugin, -Wall, -Wno-name-shadowing]
     other-modules:
       - Data.FastQ
+      - Dedumi
 
 tests:
   tests:
@@ -28,3 +29,14 @@ tests:
       - temporary
     other-modules:
       - Data.FastQ
+
+  bench:
+    main: bench.hs
+    dependencies:
+      - QuickCheck
+      - criterion
+      - temporary
+      - text
+    other-modules:
+      - Data.FastQ
+      - Dedumi
