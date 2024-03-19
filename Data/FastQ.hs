@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
@@ -9,6 +10,7 @@
 module Data.FastQ where
 
 import Control.Monad
+import Control.Applicative
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
@@ -24,7 +26,7 @@ import qualified Streamly.Data.Fold as F
 import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.External.ByteString as SB
-import Streamly.Internal.Data.Stream.Chunked as AS
+import qualified Streamly.Internal.Data.Stream.Chunked as AS
 import Streamly.Internal.Data.Stream.StreamD.Type (Step (..))
 import Streamly.Internal.Data.Unfold.Type (Unfold (..))
 import System.IO
@@ -44,14 +46,15 @@ type ReadPair = (Read, Read)
 gzipWindow :: WindowBits
 gzipWindow = WindowBits 31
 
-parse :: MonadIO m => FilePath -> FilePath -> Stream m ReadPair
+parse :: (MonadIO m) => FilePath -> FilePath -> Stream m ReadPair
 parse l r =
   S.zipWith
-    parseEntry
-    (S.unfold streamBGZFile l & AS.splitOn 64 & S.drop 1)
-    (S.unfold streamBGZFile r & AS.splitOn 64 & S.drop 1)
+    (liftA2 (,))
+    (S.unfold streamBGZFile l & AS.splitOn 10 & fmap SB.fromArray & S.foldMany parseRead)
+    (S.unfold streamBGZFile r & AS.splitOn 10 & fmap SB.fromArray & S.foldMany parseRead)
+    & S.catMaybes
   where
-    streamBGZFile :: MonadIO m => Unfold m FilePath (Array Word8)
+    streamBGZFile :: (MonadIO m) => Unfold m FilePath (Array Word8)
     streamBGZFile = Unfold step seed
       where
         seed path = liftIO $ do
@@ -88,10 +91,17 @@ parse l r =
             PRDone -> pure $ Yield (SB.toArray "") (Just (h, i, Nothing))
             PRError e -> error $ "parse:" <> show e
 
-    parseEntry l r =
-      case (SB.fromArray l & BC.lines, SB.fromArray r & BC.lines) of
-        ([hdr, seq, "+", qual], [hdr', seq', "+", qual']) -> (Read qual seq hdr, Read qual' seq' hdr')
-        e -> error $ "parseEntry:" <> show e
+    parseRead =
+      (liftA4 (\(64 :. hdr) seq "+" qual -> Read qual seq hdr))
+        <$> F.one
+        <*> F.one
+        <*> F.one
+        <*> F.one
+
+    liftA4 fn a b c d = fn <$> a <*> b <*> c <*> d
+
+pattern (:.) :: Word8 -> ByteString -> ByteString
+pattern a :. b <- (B.uncons -> Just (a, b))
 
 unparse :: FilePath -> FilePath -> Stream IO ReadPair -> IO ()
 unparse l r str = do

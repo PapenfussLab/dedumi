@@ -25,5 +25,6 @@ tests:
     main: test.hs
     dependencies:
       - QuickCheck
+      - temporary
     other-modules:
       - Data.FastQ
