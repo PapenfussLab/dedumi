@@ -12,7 +12,6 @@ import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as U
 import System.IO.Temp
 import Test.QuickCheck
-import Test.QuickCheck.Arbitrary
 import Test.QuickCheck.Monadic
 import Prelude hiding (Read)
 

@@ -11,7 +11,6 @@ import Criterion.Main
 import qualified Data.ByteString.Char8 as B
 import Data.FastQ
 import Data.Function
-import qualified Streamly.Data.Fold as F
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Unfold as U
 import Test.QuickCheck.Arbitrary
@@ -22,7 +21,6 @@ import Options.Generic
 import qualified Dedumi as D
 import Data.Maybe
 import qualified Data.Text as T
-import Debug.Trace
 
 instance Arbitrary Read where
   arbitrary = Read <$> genStr <*> genStr <*> genStr
