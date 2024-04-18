@@ -1,4 +1,6 @@
 name: dedumi
+licence: BSD3
+version: 0.1
 
 dependencies:
   - base
