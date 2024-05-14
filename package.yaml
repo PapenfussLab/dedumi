@@ -1,9 +1,9 @@
 name: dedumi
-licence: BSD3
+license: BSD3
 version: 0.1
 
 dependencies:
-  - base
+  - base >= 4.16 && < 5
   - fusion-plugin
   - streaming-commons
   - cuckoo
@@ -11,7 +11,7 @@ dependencies:
   - microlens
   - bytestring
   - streamly-bytestring
-  - streamly-core
+  - streamly-core >= 0.1 && < 0.2
   - ghc-prim
   - optparse-generic
 
