@@ -19,7 +19,7 @@ ghc-options: [-O2, -fdicts-strict, -fspec-constr-recursive=16, -fmax-worker-args
 
 executables:
   dedumi:
-    main: dedumi.hs
+    main: bin/dedumi.hs
     other-modules:
       - Data.FastQ
       - Dedumi
