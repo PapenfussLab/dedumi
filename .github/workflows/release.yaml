@@ -1,0 +1,25 @@
+name: Deployment
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  dist_linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: nixbuild/nix-quick-install-action@v28
+      - uses: actions/checkout@v4
+      - name: build
+        run: nix bundle --bundler github:ralismark/nix-appimage/ecaffbe33535509cadb198f142849295f4dfeca4 . -o dedumi
+      - name: upload
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dedumi
+          asset_name: dedumi-${{ github.event.release.tag_name }}-linux-x86_64.AppImage
+          asset_content_type: binary/octet-stream
+      
