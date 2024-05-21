@@ -7,3 +7,9 @@ jobs:
       - uses: nixbuild/nix-quick-install-action@v28
       - uses: actions/checkout@v4
       - run: nix build
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: nixbuild/nix-quick-install-action@v28
+      - uses: actions/checkout@v4
+      - run: nix build .#paper

@@ -1,0 +1,19 @@
+name: simulate-reads
+version: 0.1
+synopsis: Synthetic read generator with UMIs
+maintainer: Justin Bedo <cu@cua0.org>
+license: MIT
+
+dependencies:
+  - base
+  - streamly-core
+  - random
+  - streaming-commons
+  - bytestring
+  - mtl
+
+ghc-options: [-O2, -Wall, -Wno-name-shadowing, -rtsopts, -prof, -fprof-late]
+
+executables:
+  simulate:
+    main-is: simulate.hs

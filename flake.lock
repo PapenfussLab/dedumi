@@ -16,6 +16,22 @@
         "type": "github"
       }
     },
+    "inara": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1694971498,
+        "narHash": "sha256-i2b//MXoVz13WNoIg8rBnQbCpMIAMAjSi09w/7B5W9I=",
+        "owner": "openjournals",
+        "repo": "inara",
+        "rev": "0739fb5f750a900ef917b973c18f239aafacb1fd",
+        "type": "github"
+       },
+       "original": {
+       "owner": "openjournals",
+       "repo": "inara",
+       "type": "github"
+       }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1690875999,
@@ -34,6 +50,7 @@
     "root": {
       "inputs": {
         "cloudflareZlib": "cloudflareZlib",
+        "inara": "inara",
         "nixpkgs": "nixpkgs"
       }
     }
